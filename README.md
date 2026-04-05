@@ -1,84 +1,63 @@
-## mHC (Manifold-Constrained Hyper-Connections)
+## mHC-Time-Series (Manifold-Constrained Hyper-Connections)
 
-Research implementation of **mHC** (DeepSeek; https://arxiv.org/abs/2512.24880) as a drop-in variant of **Hyper-Connections** (https://arxiv.org/abs/2409.19606).
+Research implementation of **mHC** (DeepSeek; https://arxiv.org/abs/2512.24880) as a drop-in variant of **Hyper-Connections** (https://arxiv.org/abs/2409.19606) specifically tailored for **Time-Series Forecasting** Transformers.
 
 ### What we're building
 
-A runnable PyTorch implementation of the mHC layer update
+A runnable PyTorch implementation replacing standard Transformer residual streams with the mHC layer update:
 
-`x_{l+1} = H_l^{res} x_l + H_l^{post,T} F(H_l^{pre} x_l, W_l)`
+$$x_{l+1} = H_l^{res} x_l + H_l^{post,T} F(H_l^{pre} x_l, W_l)$$
 
 with the key constraints:
 
-- `H_res`: **doubly stochastic** (Birkhoff polytope; entries ≥ 0, rows sum to 1, cols sum to 1), via **Sinkhorn-Knopp**.
-- `H_pre`, `H_post`: **non-negative** mixing maps.
+- $H^{res}$: **doubly stochastic** (Birkhoff polytope; entries ≥ 0, rows sum to 1, cols sum to 1), solved via **Sinkhorn-Knopp**.
+- $H^{pre}$, $H^{post}$: **non-negative** mixing maps (via softmax).
+
+By forcing the residual paths to respect these manifold constraints, the models can learn complex, long-term inter-variate dependencies without signal degradation or representation collapse.
 
 ### Implementation direction
 
-Static per-layer matrices:
-- learn `H_res_logits ∈ R^{s×s}` and project to `H_res` with Sinkhorn
-- learn `H_pre_logits`, `H_post_logits` and map to non-negative weights (e.g. softmax)
+Supported baseline architectures and their mHC-enhanced counterparts:
 
-This is a research prototype aimed at correctness + clarity, not the paper's systems optimizations.
+- `vanilla_transformer` / `mHC_vanilla_transformer`
+- `iTransformer` / `mHC_iTransformer` (Inverted architecture, highly optimized for mHC)
+- `patchtst` / `mHC_patchtst`
 
-### Running (nanoGPT on FineWeb10B)
+This is a research prototype aimed at validating the impact of mHC on **Information Flow** (Self-MI & Cross-MI) and **Gradient Stability** over temporal sequences.
 
-Run from `examples/nanogpt/`. Adjust `--nproc_per_node` to match your GPU count.
+### Running (Time Series on Weather Dataset)
 
-**6-layer configs (~20M params):**
+Run from the project root. The `main.py` script acts as an automated pipeline to benchmark models sequentially.
+
+**Run a complete benchmark (All Models):**
+
 ```bash
-python train.py config/train_fineweb10B.py
-python train.py config/train_fineweb10B_hc.py
-python train.py config/train_fineweb10B_mhc.py
-python train.py config/train_fineweb10B_vres.py
-python train.py config/train_fineweb10B_vres_mhc.py
-python train.py config/train_fineweb10B_cvres_mhc.py
+python main.py \
+    --data_path dataset/weather/weather.csv \
+    --task_name long_term_forecast \
+    --enc_in 21 --dec_in 21 --c_out 21 \
+    --seq_len 96 --label_len 48 --pred_len 96 \
+    --e_layers 3 --d_model 512 \
+    --batch_size 32 --epochs 10 --patience 3
 ```
 
-**48-layer configs (~20M params):**
-```bash
-python train.py config/train_fineweb10B_48l.py
-python train.py config/train_fineweb10B_hc_48l.py
-python train.py config/train_fineweb10B_mhc_48l.py
-python train.py config/train_fineweb10B_vres_48l.py
-python train.py config/train_fineweb10B_vres_mhc_48l.py
-python train.py config/train_fineweb10B_cvres_mhc_48l.py
-```
+### Automated Artifacts & Checkpointing
 
-**Multi-GPU example:**
-```bash
-torchrun --standalone --nproc_per_node=4 train.py config/train_fineweb10B_mhc_48l.py
-```
+The pipeline automatically handles parameter tracking and evaluation metrics. All outputs are generated and stored in the `./eval_results/` directory, which includes:
 
-#### Orthostochastic mHC option
-mHC supports an orthostochastic H_res projection via Newton-Schulz. Set `mhc_h_res_proj = "orthostochastic"` in your config.
+- **`saved_weights/`**: Stores independent `.pth` checkpoint files for each converged model.
+- **`summary_log.txt`**: Contains raw logs tracking Trainable Parameters, MSE, MAE, Self-MI, and Avg-Cross-MI.
+- **`compare_forecasting.png`**: Provides bar charts to compare predictive accuracy.
+  ![Biểu đồ So sánh Forecasting](./eval_results/compare_forecasting.png)
+- **`compare_mutual_information.png`**: Visually evaluates inter-variate communication.
+  ![Biểu đồ Information Flow](./eval_results/compare_mutual_information.png)
 
-By default, configs use fixed Newton-Schulz coefficients (`ns_steps=5`, `ns_coeffs=(3.0, -3.2, 1.2)`). For research, `ns_coeffs` can also be a per-step schedule (tuple of `(a, b, c)` triplets); set `ns_steps = len(ns_coeffs)`.
+### Information Flow Analysis
 
-#### Residual identity-mix (optional)
-For an ablation that keeps residual routing close to identity, enable:
-- `mhc_residual_identity_mix = True`
-- `mhc_residual_alpha = 0.01`
-
-This applies `H_res = (1-α) * I + α * S` where `S` is the projected matrix (Sinkhorn or orthostochastic) and `α` is learned.
-
-#### Value residual (vRes) notes
-- `train_fineweb10B_vres*.py` enables value residual only.
-- `train_fineweb10B_vres_mhc*.py` combines vRes + mHC.
-- `train_fineweb10B_cvres_mhc*.py` combines vRes + mHC with `v_residual_constrained=True` (convex mixing via softmax).
-
-### Implemented research
-- Value residual ablations with baseline/HC/mHC
-- Combined vRes + mHC configs (unconstrained + constrained)
-- H^res = `(1−α)*I + α*S` instead of full doubly stochastic
-- Orthostochastic H_res projection (Newton-Schulz) as alternative to Sinkhorn-Knopp
-- Opt-in Newton-Schulz coefficient schedule for orthostochastic projection
-
+This pipeline utilizes a perturbation-based sensitivity analysis via `calculate_perturbation_mi`. This method measures the amount of information variates share across the manifold in comparison to standard identity mappings.
 
 ### Acknowledgements
 
-Built using code snippets from `nanogpt`, `lucidrains/hyper-connections` and my own mHC implementation.
-
-### License
-
-Apache 2.0
+- Core hyper-connection routing logic is adapted from [lucidrains/hyper-connections](https://github.com/lucidrains/hyper-connections).
+- Time-series layers and data providers are built upon the foundations of the [Time-Series-Library](https://github.com/thuml/Time-Series-Library).
+- The conceptual foundation is based on DeepSeek's [mHC paper](https://arxiv.org/abs/2512.24880).
