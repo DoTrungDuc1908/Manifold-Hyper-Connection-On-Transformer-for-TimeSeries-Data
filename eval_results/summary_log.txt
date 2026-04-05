@@ -1,0 +1,6 @@
+Model: vanilla_transformer | Params: 13,742,655 | MSE: 0.1803 | MAE: 0.2276 | Self-MI: 0.5121 | Avg-Cross-MI: 0.0761
+Model: mHC_vanilla_transformer | Params: 9,557,175 | MSE: 0.1749 | MAE: 0.2193 | Self-MI: 0.3295 | Avg-Cross-MI: 0.0046
+Model: iTransformer | Params: 9,557,088 | MSE: 0.1868 | MAE: 0.2280 | Self-MI: 0.3050 | Avg-Cross-MI: 0.0048
+Model: mHC_iTransformer | Params: 9,557,133 | MSE: 0.1791 | MAE: 0.2197 | Self-MI: 0.3105 | Avg-Cross-MI: 0.0040
+Model: mHC_patchtst | Params: 10,056,375 | MSE: 0.1634 | MAE: 0.2103 | Self-MI: 0.3112 | Avg-Cross-MI: 0.0000
+Model: patchtst | Params: 10,056,330 | MSE: 0.1619 | MAE: 0.2065 | Self-MI: 0.3132 | Avg-Cross-MI: 0.0000
