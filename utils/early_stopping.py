@@ -3,10 +3,6 @@ import torch
 import os
 
 class EarlyStopping:
-    """
-    Cơ chế Early Stopping để dừng quá trình huấn luyện sớm nếu val_loss không giảm
-    sau một số lượng epoch (patience) nhất định. Đồng thời tự động lưu lại trọng số (checkpoint) tốt nhất.
-    """
     def __init__(self, patience=7, verbose=False, delta=0, path='checkpoints/best_model.pth'):
         self.patience = patience
         self.verbose = verbose
