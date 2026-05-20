@@ -1,63 +1,49 @@
-## mHC-Time-Series (Manifold-Constrained Hyper-Connections)
+# mHC-Time-Series  
+## Manifold-Constrained Hyper-Connections for Transformer Time-Series Forecasting
 
-Research implementation of **mHC** (DeepSeek; https://arxiv.org/abs/2512.24880) as a drop-in variant of **Hyper-Connections** (https://arxiv.org/abs/2409.19606) specifically tailored for **Time-Series Forecasting** Transformers.
+This repository contains a research-oriented PyTorch implementation of **Hyper-Connections (HC)** and **Manifold-Constrained Hyper-Connections (mHC)** for Transformer-based time-series forecasting.
 
-### What we're building
+The project investigates whether manifold-constrained residual routing can improve:
 
-A runnable PyTorch implementation replacing standard Transformer residual streams with the mHC layer update:
+- forecasting accuracy,
+- optimization stability,
+- information propagation,
+- and depth scalability
 
-$$x_{l+1} = H_l^{res} x_l + H_l^{post,T} F(H_l^{pre} x_l, W_l)$$
+across multiple Transformer architectures and benchmark datasets.
 
-with the key constraints:
+The implementation is inspired by:
 
-- $H^{res}$: **doubly stochastic** (Birkhoff polytope; entries ≥ 0, rows sum to 1, cols sum to 1), solved via **Sinkhorn-Knopp**.
-- $H^{pre}$, $H^{post}$: **non-negative** mixing maps (via softmax).
+- Hyper-Connections: https://arxiv.org/abs/2409.19606
+- mHC: https://arxiv.org/abs/2512.24880
 
-By forcing the residual paths to respect these manifold constraints, the models can learn complex, long-term inter-variate dependencies without signal degradation or representation collapse.
+---
 
-### Implementation direction
+# Project Goal
 
-Supported baseline architectures and their mHC-enhanced counterparts:
+Modern Transformer forecasting models rely heavily on residual propagation. Standard residual connections are stable but limited in representational flexibility.
 
-- `vanilla_transformer` / `mHC_vanilla_transformer`
-- `iTransformer` / `mHC_iTransformer` (Inverted architecture, highly optimized for mHC)
-- `patchtst` / `mHC_patchtst`
+HC extends the residual mechanism by introducing:
 
-This is a research prototype aimed at validating the impact of mHC on **Information Flow** (Self-MI & Cross-MI) and **Gradient Stability** over temporal sequences.
+- multi-stream residual routing,
+- learnable mixing operators,
+- flexible information propagation across layers.
 
-### Running (Time Series on Weather Dataset)
+mHC further improves this idea by constraining the residual routing process through manifold-inspired normalization (Sinkhorn-based doubly stochastic routing), with the goal of:
 
-Run from the project root. The `main.py` script acts as an automated pipeline to benchmark models sequentially.
+- reducing unstable gradient amplification,
+- improving deep-layer information flow,
+- stabilizing optimization for deep Transformers.
 
-**Run a complete benchmark (All Models):**
+---
 
-```bash
-python main.py \
-    --data_path dataset/weather/weather.csv \
-    --task_name long_term_forecast \
-    --enc_in 21 --dec_in 21 --c_out 21 \
-    --seq_len 96 --label_len 48 --pred_len 96 \
-    --e_layers 3 --d_model 512 \
-    --batch_size 32 --epochs 10 --patience 3
-```
+# Supported Architectures
 
-### Automated Artifacts & Checkpointing
+The repository currently supports:
 
-The pipeline automatically handles parameter tracking and evaluation metrics. All outputs are generated and stored in the `./eval_results/` directory, which includes:
-
-- **`saved_weights/`**: Stores independent `.pth` checkpoint files for each converged model.
-- **`summary_log.txt`**: Contains raw logs tracking Trainable Parameters, MSE, MAE, Self-MI, and Avg-Cross-MI.
-- **`compare_forecasting.png`**: Provides bar charts to compare predictive accuracy.
-  ![Biểu đồ So sánh Forecasting](./eval_results/compare_forecasting.png)
-- **`compare_mutual_information.png`**: Visually evaluates inter-variate communication.
-  ![Biểu đồ Information Flow](./eval_results/compare_mutual_information.png)
-
-### Information Flow Analysis
-
-This pipeline utilizes a perturbation-based sensitivity analysis via `calculate_perturbation_mi`. This method measures the amount of information variates share across the manifold in comparison to standard identity mappings.
-
-### Acknowledgements
-
-- Core hyper-connection routing logic is adapted from [lucidrains/hyper-connections](https://github.com/lucidrains/hyper-connections).
-- Time-series layers and data providers are built upon the foundations of the [Time-Series-Library](https://github.com/thuml/Time-Series-Library).
-- The conceptual foundation is based on DeepSeek's [mHC paper](https://arxiv.org/abs/2512.24880).
+| Baseline | HC Variant | mHC Variant |
+|---|---|---|
+| Vanilla Transformer | HC Transformer | mHC Transformer |
+| Autoformer | HC Autoformer | mHC Autoformer |
+| iTransformer | HC iTransformer | mHC iTransformer |
+| PatchTST | HC PatchTST | mHC PatchTST |
